@@ -1,0 +1,425 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom animations for loading spinner */
+@keyframes spin-reverse {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(0.95);
+  }
+}
+
+.animate-spin-reverse {
+  animation: spin-reverse 1.5s linear infinite;
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2s ease-in-out infinite;
+}
+
+/* Manufacturing Industry Background Themes */
+.bg-industrial-subtle {
+  background: 
+    linear-gradient(135deg, rgba(15, 23, 42, 0.08) 0%, rgba(30, 41, 59, 0.08) 100%),
+    radial-gradient(circle at 20% 50%, rgba(20, 184, 166, 0.12) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(99, 102, 241, 0.08) 0%, transparent 50%);
+}
+
+.bg-industrial-pattern {
+  background: 
+    linear-gradient(135deg, rgba(15, 23, 42, 0.03) 0%, rgba(30, 41, 59, 0.03) 100%),
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 2px,
+      rgba(20, 184, 166, 0.01) 2px,
+      rgba(20, 184, 166, 0.01) 4px
+    );
+}
+
+.bg-manufacturing-grid {
+  background-image: 
+    linear-gradient(rgba(20, 184, 166, 0.01) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20, 184, 166, 0.01) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-color: rgba(248, 250, 252, 0.8);
+}
+
+/* Custom 3D Tracking Animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(20, 184, 166, 0.4); }
+  50% { box-shadow: 0 0 40px rgba(20, 184, 166, 0.8); }
+}
+
+@keyframes slideInFromLeft {
+  0% { 
+    opacity: 0; 
+    transform: translateX(-100px) scale(0.8); 
+  }
+  100% { 
+    opacity: 1; 
+    transform: translateX(0) scale(1); 
+  }
+}
+
+@keyframes progressBar {
+  0% { width: 0%; }
+  100% { width: 100%; }
+}
+
+@keyframes rotate3d {
+  0% { transform: perspective(1000px) rotateY(0deg); }
+  100% { transform: perspective(1000px) rotateY(360deg); }
+}
+
+@keyframes gradientX {
+  0%, 100% {
+    background-size: 200% 200%;
+    background-position: left center;
+  }
+  50% {
+    background-size: 200% 200%;
+    background-position: right center;
+  }
+}
+
+@keyframes shippedBackground {
+  0%, 100% {
+    background: linear-gradient(135deg, rgba(251, 146, 60, 0.1) 0%, rgba(249, 115, 22, 0.1) 50%, rgba(251, 146, 60, 0.1) 100%);
+    background-size: 200% 200%;
+    background-position: left center;
+  }
+  50% {
+    background: linear-gradient(135deg, rgba(251, 146, 60, 0.1) 0%, rgba(249, 115, 22, 0.1) 50%, rgba(251, 146, 60, 0.1) 100%);
+    background-size: 200% 200%;
+    background-position: right center;
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-glow {
+  animation: glow 2s ease-in-out infinite;
+}
+
+.animate-slide-in-left {
+  animation: slideInFromLeft 0.8s ease-out forwards;
+}
+
+.animate-progress {
+  animation: progressBar 2s ease-out forwards;
+}
+
+.animate-rotate-3d {
+  animation: rotate3d 10s linear infinite;
+}
+
+.animate-gradient-x {
+  animation: gradientX 3s ease-in-out infinite;
+  background-size: 200% 200%;
+}
+
+.animate-shipped-bg {
+  animation: shippedBackground 4s ease-in-out infinite;
+  background-size: 200% 200%;
+}
+
+/* 3D Card hover effects */
+.card-3d {
+  transform-style: preserve-3d;
+  transition: transform 0.3s ease;
+}
+
+.card-3d:hover {
+  transform: perspective(1000px) rotateX(5deg) rotateY(5deg) translateZ(20px);
+}
+
+/* Transportation Animation Styles */
+.shipping-animation {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.transport-icon {
+  position: absolute;
+  opacity: 0;
+  transform: scale(0.8);
+  animation-duration: 9s;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+}
+
+.transport-icon.truck {
+  animation-name: truckAnimation;
+  animation-delay: 0s;
+}
+
+.transport-icon.ship {
+  animation-name: shipAnimation;
+  animation-delay: 3s;
+}
+
+.transport-icon.plane {
+  animation-name: planeAnimation;
+  animation-delay: 6s;
+}
+
+@keyframes truckAnimation {
+  0%, 11% { opacity: 1; transform: scale(1) translateX(-10px); }
+  22%, 33% { opacity: 1; transform: scale(1) translateX(10px); }
+  44%, 100% { opacity: 0; transform: scale(0.8) translateX(10px); }
+}
+
+@keyframes shipAnimation {
+  0%, 33% { opacity: 0; transform: scale(0.8) translateX(-10px); }
+  44%, 55% { opacity: 1; transform: scale(1) translateX(-10px); }
+  66%, 77% { opacity: 1; transform: scale(1) translateX(10px); }
+  88%, 100% { opacity: 0; transform: scale(0.8) translateX(10px); }
+}
+
+@keyframes planeAnimation {
+  0%, 66% { opacity: 0; transform: scale(0.8) translateX(-10px); }
+  77%, 88% { opacity: 1; transform: scale(1) translateX(-10px); }
+  99%, 100% { opacity: 1; transform: scale(1) translateX(10px); }
+}
+
+/* Transportation Timeline */
+.transport-timeline {
+  position: relative;
+  padding: 16px 0;
+  margin: 8px 0;
+}
+
+.transport-path {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #94a3b8, #0891b2, #059669);
+  border-radius: 2px;
+  transform: translateY(-50%);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.transport-stages {
+  display: flex;
+  justify-content: space-between;
+  position: relative;
+  z-index: 2;
+}
+
+.transport-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.stage-icon {
+  width: 32px;
+  height: 32px;
+  background: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  margin-bottom: 4px;
+  animation: stagePulse 2s ease-in-out infinite;
+}
+
+.stage-label {
+  font-size: 10px;
+  color: #64748b;
+  font-weight: 600;
+  text-align: center;
+  max-width: 60px;
+}
+
+.transport-progress {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #10b981, #06b6d4);
+  border-radius: 2px;
+  transform: translateY(-50%);
+  animation: transportProgress 9s ease-in-out infinite;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+}
+
+@keyframes stagePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+@keyframes transportProgress {
+  0% { width: 0%; }
+  33% { width: 50%; }
+  66% { width: 80%; }
+  100% { width: 100%; }
+}
+
+:root {
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(20, 14.3%, 4.1%);
+  --muted: hsl(60, 4.8%, 95.9%);
+  --muted-foreground: hsl(25, 5.3%, 44.7%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(20, 14.3%, 4.1%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(20, 14.3%, 4.1%);
+  --border: hsl(20, 5.9%, 90%);
+  --input: hsl(20, 5.9%, 90%);
+  --primary: hsl(180, 100%, 20%);
+  --primary-foreground: hsl(0, 0%, 100%);
+  --secondary: hsl(207, 90%, 18%);
+  --secondary-foreground: hsl(0, 0%, 100%);
+  --accent: hsl(60, 4.8%, 95.9%);
+  --accent-foreground: hsl(24, 9.8%, 10%);
+  --destructive: hsl(0, 84.2%, 60.2%);
+  --destructive-foreground: hsl(60, 9.1%, 97.8%);
+  --ring: hsl(20, 14.3%, 4.1%);
+  --radius: 1rem;
+
+  /* Custom Stoneflake colors */
+  --teal-primary: hsl(180, 100%, 20%);
+  --navy-secondary: hsl(207, 90%, 18%);
+  --cool-gray: hsl(0, 0%, 92%);
+  --success: hsl(142, 76%, 36%);
+  --warning: hsl(43, 96%, 56%);
+  --error: hsl(0, 84%, 60%);
+}
+
+.dark {
+  --background: hsl(240, 10%, 3.9%);
+  --foreground: hsl(0, 0%, 98%);
+  --muted: hsl(240, 3.7%, 15.9%);
+  --muted-foreground: hsl(240, 5%, 64.9%);
+  --popover: hsl(240, 10%, 3.9%);
+  --popover-foreground: hsl(0, 0%, 98%);
+  --card: hsl(240, 10%, 3.9%);
+  --card-foreground: hsl(0, 0%, 98%);
+  --border: hsl(240, 3.7%, 15.9%);
+  --input: hsl(240, 3.7%, 15.9%);
+  --primary: hsl(180, 100%, 20%);
+  --primary-foreground: hsl(0, 0%, 100%);
+  --secondary: hsl(240, 3.7%, 15.9%);
+  --secondary-foreground: hsl(0, 0%, 98%);
+  --accent: hsl(240, 3.7%, 15.9%);
+  --accent-foreground: hsl(0, 0%, 98%);
+  --destructive: hsl(0, 62.8%, 30.6%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --ring: hsl(240, 4.9%, 83.9%);
+  --radius: 1rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+@layer utilities {
+  .teal-primary {
+    color: var(--teal-primary);
+  }
+  
+  .bg-teal-primary {
+    background-color: var(--teal-primary);
+  }
+  
+  .navy-secondary {
+    color: var(--navy-secondary);
+  }
+  
+  .bg-navy-secondary {
+    background-color: var(--navy-secondary);
+  }
+  
+  .cool-gray {
+    color: var(--cool-gray);
+  }
+  
+  .bg-cool-gray {
+    background-color: var(--cool-gray);
+  }
+
+  /* Resizable table styles */
+  .resizable-table {
+    user-select: none;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .resize-handle {
+    position: absolute;
+    right: -2px;
+    top: 0;
+    height: 100%;
+    width: 4px;
+    cursor: col-resize;
+    transition: background-color 0.2s ease;
+    background: transparent;
+    z-index: 10;
+  }
+
+  .resize-handle:hover {
+    background: hsl(var(--primary));
+    opacity: 0.7;
+  }
+
+  .resize-handle:active {
+    background: hsl(var(--primary));
+    opacity: 1;
+  }
+
+  .resizable-table th {
+    position: relative;
+    border-right: 1px solid transparent;
+  }
+
+  .resizable-table th:hover {
+    border-right: 1px solid hsl(var(--primary) / 0.3);
+  }
+
+  /* Table cell overflow handling */
+  .table-cell-content {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
