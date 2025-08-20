@@ -38,7 +38,7 @@ interface SupplierQuote {
   leadTime: number;
   notes?: string;
   quoteFileUrl?: string;
-  status: 'pending' | 'accepted' | 'rejected';
+  status: 'pending' | 'accepted' | 'not_selected';
   submittedAt: string;
   hasPurchaseOrder?: boolean;
   supplier: {
@@ -80,6 +80,9 @@ export default function AdminSupplierQuotes({ showHeader = true }: AdminSupplier
   const [referenceFilter, setReferenceFilter] = useState<string>('all');
   const [createPOQuote, setCreatePOQuote] = useState<SupplierQuote | null>(null);
   const [selectedQuoteDetails, setSelectedQuoteDetails] = useState<SupplierQuote | null>(null);
+  const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
+  const [quoteToReject, setQuoteToReject] = useState<SupplierQuote | null>(null);
+  const [adminFeedback, setAdminFeedback] = useState('');
   const [poForm, setPOForm] = useState({
     deliveryDate: '',
     notes: '',
@@ -105,8 +108,8 @@ export default function AdminSupplierQuotes({ showHeader = true }: AdminSupplier
 
   // Update quote status mutation
   const updateQuoteStatusMutation = useMutation({
-    mutationFn: async ({ quoteId, status }: { quoteId: string; status: string }) => {
-      const response = await apiRequest('PUT', `/api/admin/supplier-quotes/${quoteId}/status`, { status });
+    mutationFn: async ({ quoteId, status, adminFeedback }: { quoteId: string; status: string; adminFeedback?: string }) => {
+      const response = await apiRequest('PUT', `/api/admin/supplier-quotes/${quoteId}/status`, { status, adminFeedback });
       return response.json();
     },
     onSuccess: () => {
@@ -224,7 +227,8 @@ export default function AdminSupplierQuotes({ showHeader = true }: AdminSupplier
     const statusConfig = {
       pending: { variant: 'outline' as const, color: 'text-yellow-600', label: 'Pending' },
       accepted: { variant: 'default' as const, color: 'text-green-600', label: 'Accepted' },
-      rejected: { variant: 'destructive' as const, color: 'text-red-600', label: 'Rejected' },
+      not_selected: { variant: 'secondary' as const, color: 'text-orange-600', label: 'Not Selected' },
+      rejected: { variant: 'secondary' as const, color: 'text-orange-600', label: 'Not Selected' }, // Legacy support
     };
     
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
@@ -508,7 +512,10 @@ export default function AdminSupplierQuotes({ showHeader = true }: AdminSupplier
                                             size="sm" 
                                             variant="destructive"
                                             className="h-8"
-                                            onClick={() => updateQuoteStatusMutation.mutate({ quoteId: quote.id, status: 'rejected' })}
+                                            onClick={() => {
+                                              setQuoteToReject(quote);
+                                              setShowFeedbackDialog(true);
+                                            }}
                                           >
                                             <XCircle className="h-3 w-3" />
                                           </Button>
@@ -754,12 +761,13 @@ export default function AdminSupplierQuotes({ showHeader = true }: AdminSupplier
                       <Button 
                         variant="destructive"
                         onClick={() => {
-                          updateQuoteStatusMutation.mutate({ quoteId: selectedQuoteDetails.id, status: 'rejected' });
+                          setQuoteToReject(selectedQuoteDetails);
+                          setShowFeedbackDialog(true);
                           setSelectedQuoteDetails(null);
                         }}
                       >
                         <XCircle className="h-4 w-4 mr-1" />
-                        Reject Quote
+                        Don't Select Quote  
                       </Button>
                       <Button 
                         className="bg-green-600 hover:bg-green-700"
@@ -788,6 +796,61 @@ export default function AdminSupplierQuotes({ showHeader = true }: AdminSupplier
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Admin Feedback Dialog */}
+        <Dialog open={showFeedbackDialog} onOpenChange={setShowFeedbackDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Provide Feedback</DialogTitle>
+              <p className="text-sm text-gray-600">
+                Please let the supplier know why this quote wasn't selected. This helps them improve for future opportunities.
+              </p>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="feedback">Feedback Message</Label>
+                <textarea
+                  id="feedback"
+                  className="w-full p-3 border rounded-md h-24 text-sm"
+                  placeholder="Thank you for your quote. We've decided to go with another supplier for this project. We appreciate your time and look forward to working with you on future opportunities."
+                  value={adminFeedback}
+                  onChange={(e) => setAdminFeedback(e.target.value)}
+                />
+              </div>
+              
+              <div className="flex justify-end space-x-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowFeedbackDialog(false);
+                    setQuoteToReject(null);
+                    setAdminFeedback('');
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (quoteToReject) {
+                      updateQuoteStatusMutation.mutate({ 
+                        quoteId: quoteToReject.id, 
+                        status: 'not_selected',
+                        adminFeedback: adminFeedback || 'Quote not selected for this project.'
+                      });
+                    }
+                    setShowFeedbackDialog(false);
+                    setQuoteToReject(null);
+                    setAdminFeedback('');
+                  }}
+                  className="bg-orange-600 hover:bg-orange-700"
+                >
+                  Send Feedback
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       </div>

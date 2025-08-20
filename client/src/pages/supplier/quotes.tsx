@@ -48,8 +48,8 @@ export default function SupplierQuotes() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">Quote {quote.sqteNumber || extractDisplayId(quote.rfq || {})}</CardTitle>
-                    <Badge variant={quote.status === 'accepted' ? 'default' : quote.status === 'pending' ? 'secondary' : 'destructive'}>
-                      {quote.status}
+                    <Badge variant={quote.status === 'accepted' ? 'default' : quote.status === 'pending' ? 'secondary' : 'secondary'}>
+                      {quote.status === 'not_selected' || quote.status === 'rejected' ? 'Not Selected' : quote.status}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -68,6 +68,14 @@ export default function SupplierQuotes() {
                       <span className="text-sm text-gray-600">RFQ: {quote.sqteNumber || extractDisplayId(quote.rfq || {})}</span>
                     </div>
                   </div>
+                  
+                  {/* Show admin feedback for not selected quotes */}
+                  {(quote.status === 'not_selected' || quote.status === 'rejected') && quote.adminFeedback && (
+                    <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                      <h4 className="text-sm font-medium text-orange-800 mb-1">Feedback from Admin</h4>
+                      <p className="text-sm text-orange-700">{quote.adminFeedback}</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))

@@ -434,6 +434,13 @@ export default function SupplierRFQs() {
                                 </div>
                               )}
 
+                              {assignment.rfq?.specialInstructions && (
+                                <div>
+                                  <Label className="font-medium">Special Instructions</Label>
+                                  <p className="mt-1">{assignment.rfq.specialInstructions}</p>
+                                </div>
+                              )}
+
                               {assignment.rfq?.files && assignment.rfq.files.length > 0 && (
                                 <div>
                                   <Label className="font-medium">Attached Files</Label>
@@ -451,7 +458,56 @@ export default function SupplierRFQs() {
                                           <Button
                                             size="sm"
                                             variant="ghost"
-                                            onClick={() => window.open(`/api/files/${file.id}/download`, '_blank')}
+                                            onClick={async () => {
+                                              try {
+                                                const token = localStorage.getItem('stoneflake_token');
+                                                if (!token) {
+                                                  toast({
+                                                    title: "Error",
+                                                    description: "Please log in to download files",
+                                                    variant: "destructive"
+                                                  });
+                                                  return;
+                                                }
+
+                                                const response = await fetch(`/api/files/${file.id}/download`, {
+                                                  headers: {
+                                                    'Authorization': `Bearer ${token}`
+                                                  }
+                                                });
+                                                
+                                                if (response.ok) {
+                                                  const blob = await response.blob();
+                                                  const url = window.URL.createObjectURL(blob);
+                                                  const a = document.createElement('a');
+                                                  a.href = url;
+                                                  a.download = file.fileName;
+                                                  document.body.appendChild(a);
+                                                  a.click();
+                                                  window.URL.revokeObjectURL(url);
+                                                  document.body.removeChild(a);
+                                                  
+                                                  toast({
+                                                    title: "Success",
+                                                    description: `Downloaded ${file.fileName}`,
+                                                  });
+                                                } else {
+                                                  const errorData = await response.json().catch(() => ({}));
+                                                  toast({
+                                                    title: "Download Failed",
+                                                    description: errorData.message || "Unable to download file",
+                                                    variant: "destructive"
+                                                  });
+                                                }
+                                              } catch (error) {
+                                                console.error('Download error:', error);
+                                                toast({
+                                                  title: "Download Error",
+                                                  description: "Network error occurred while downloading",
+                                                  variant: "destructive"
+                                                });
+                                              }
+                                            }}
                                           >
                                             <Download className="h-4 w-4" />
                                           </Button>
@@ -635,6 +691,18 @@ export default function SupplierRFQs() {
                   <div><strong>Tolerance:</strong> {selectedRfq.tolerance}</div>
                   <div><strong>Finishing:</strong> {selectedRfq.finishing || 'Not specified'}</div>
                 </div>
+                {selectedRfq.notes && (
+                  <div className="mt-3">
+                    <strong>Additional Requirements:</strong>
+                    <p className="text-sm text-gray-600 mt-1">{selectedRfq.notes}</p>
+                  </div>
+                )}
+                {selectedRfq.specialInstructions && (
+                  <div className="mt-3">
+                    <strong>Special Instructions:</strong>
+                    <p className="text-sm text-gray-600 mt-1">{selectedRfq.specialInstructions}</p>
+                  </div>
+                )}
               </div>
 
               <Separator />

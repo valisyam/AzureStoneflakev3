@@ -330,7 +330,7 @@ export class EmailService {
     quoteAmount: string;
     leadTime: number;
   }): Promise<boolean> {
-    const subject = `Quote Accepted - ${quoteDetails.projectName} - S-Hub`;
+    const subject = `Update on your quote for Stoneflake - ${quoteDetails.projectName} - ACCEPTED`;
     
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;">
@@ -411,6 +411,74 @@ export class EmailService {
     `;
     
     const text = `Hello ${supplierName}, Purchase order ${poDetails.orderNumber} has been created for ${poDetails.projectName}.`;
+
+    return this.sendEmail({
+      to: email,
+      subject,
+      html,
+      text,
+    });
+  }
+
+  // Quote Not Selected Email
+  async sendQuoteNotSelectedNotification(
+    email: string,
+    supplierName: string,
+    quoteDetails: {
+      projectName: string;
+      quoteAmount: string;
+      adminFeedback?: string;
+    }
+  ): Promise<boolean> {
+    const subject = `Update on your quote for Stoneflake - ${quoteDetails.projectName}`;
+    
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: white;">
+        <div style="text-align: center; margin-bottom: 40px;">
+          <h1 style="color: white; margin: 0; font-size: 28px;">S-Hub by Stoneflake</h1>
+          <p style="color: #fed7aa; margin: 5px 0 0;">Manufacturing Portal</p>
+        </div>
+        
+        <div style="background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); border-radius: 15px; padding: 30px;">
+          <h2 style="color: white; margin-top: 0;">📋 Update on Your Quote</h2>
+          
+          <p style="color: #fed7aa; line-height: 1.6; margin-bottom: 20px;">
+            Hello ${supplierName},
+          </p>
+          
+          <p style="color: #fed7aa; line-height: 1.6; margin-bottom: 20px;">
+            Thank you for submitting your quote for <strong style="color: white;">${quoteDetails.projectName}</strong>. 
+            While your quote was not selected for this particular project, we truly appreciate 
+            your participation and the effort you put into preparing your proposal.
+          </p>
+          
+          <div style="background: rgba(255, 255, 255, 0.2); border-radius: 10px; padding: 20px; margin: 20px 0;">
+            <p style="color: white; margin: 5px 0;"><strong>Project:</strong> ${quoteDetails.projectName}</p>
+            <p style="color: white; margin: 5px 0;"><strong>Your Quote Amount:</strong> $${quoteDetails.quoteAmount}</p>
+            <p style="color: white; margin: 5px 0;"><strong>Status:</strong> Not Selected</p>
+          </div>
+          
+          ${quoteDetails.adminFeedback ? `
+            <div style="background: rgba(255, 255, 255, 0.15); border-radius: 10px; padding: 20px; margin: 20px 0;">
+              <h4 style="color: white; margin-top: 0; margin-bottom: 10px;">Feedback from Our Team:</h4>
+              <p style="color: #fed7aa; line-height: 1.6; margin: 0;">${quoteDetails.adminFeedback}</p>
+            </div>
+          ` : ''}
+          
+          <p style="color: #fed7aa; line-height: 1.6; margin-bottom: 10px;">
+            We value our partnership with you and look forward to future opportunities to collaborate. 
+            Please continue to participate in our RFQ process as new projects become available.
+          </p>
+          
+          <p style="color: #fed7aa; line-height: 1.6; margin-bottom: 0;">
+            Best regards,<br>
+            <strong style="color: white;">The Stoneflake Team</strong>
+          </p>
+        </div>
+      </div>
+    `;
+    
+    const text = `Hello ${supplierName}, Your quote for ${quoteDetails.projectName} was not selected for this project. ${quoteDetails.adminFeedback ? 'Feedback: ' + quoteDetails.adminFeedback : ''} Thank you for your participation.`;
 
     return this.sendEmail({
       to: email,

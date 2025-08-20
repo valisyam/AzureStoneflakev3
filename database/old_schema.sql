@@ -1,5 +1,6 @@
--- Stoneflake Manufacturing Portal Database Schema
--- Generated for Azure migration
+-- OLD SCHEMA - DO NOT USE
+-- This schema is outdated and missing recent enhancements
+-- Use updated-schema.sql instead
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

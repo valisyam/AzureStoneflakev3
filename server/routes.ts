@@ -980,6 +980,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin bulk quote file upload - temporary files without linking to entities
+  app.post('/api/admin/files/upload', authenticateToken, upload.array('files'), async (req: any, res) => {
+    try {
+      // Only allow admin users
+      if (!req.user.isAdmin) {
+        return res.status(403).json({ message: 'Admin access required' });
+      }
+
+      const uploadedFiles = [];
+
+      for (const file of req.files) {
+        const fileExt = path.extname(file.originalname).toLowerCase();
+        let fileType: "step" | "pdf" | "excel" | "image" = 'pdf';
+        if (['.step', '.stp'].includes(fileExt)) {
+          fileType = 'step';
+        } else if (['.xlsx', '.xls'].includes(fileExt)) {
+          fileType = 'excel';
+        } else if (['.jpg', '.jpeg', '.png', '.gif'].includes(fileExt)) {
+          fileType = 'image';
+        }
+
+        // Create file record with temporary linking for bulk quotes
+        const fileRecord = await storage.createFile({
+          userId: req.user.id,
+          fileName: file.originalname,
+          fileUrl: file.path,
+          fileSize: file.size,
+          fileType,
+          linkedToType: 'rfq', // Use 'rfq' as a default for now
+          linkedToId: 'temp-bulk-quote', // Temporary placeholder
+        });
+
+        uploadedFiles.push(fileRecord);
+      }
+
+      res.json(uploadedFiles);
+    } catch (error) {
+      console.error('Admin bulk quote file upload error:', error);
+      res.status(500).json({ message: 'File upload failed' });
+    }
+  });
+
   // REMOVED: Old STEP-XKT conversion endpoint - using new X3D approach instead
 
 
@@ -2784,13 +2826,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/admin/supplier-quotes/:quoteId/status', authenticateToken, requireAdmin, async (req: any, res) => {
     try {
       const { quoteId } = req.params;
-      const { status, adminNotes } = req.body;
+      const { status, adminFeedback } = req.body;
 
-      if (!['pending', 'accepted', 'rejected'].includes(status)) {
+      if (!['pending', 'accepted', 'not_selected'].includes(status)) {
         return res.status(400).json({ message: 'Invalid status' });
       }
 
-      await storage.updateSupplierQuoteStatus(quoteId, status);
+      await storage.updateSupplierQuoteStatus(quoteId, status, adminFeedback);
 
       // If quote is accepted, send notification to supplier
       if (status === 'accepted') {
@@ -2822,6 +2864,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
               );
             } catch (emailError) {
               console.error('Failed to send quote acceptance email:', emailError);
+            }
+          }
+        }
+      }
+      
+      // If quote is not selected, send notification and email to supplier
+      if (status === 'not_selected') {
+        const quote = await storage.getSupplierQuoteById(quoteId);
+        if (quote) {
+          const supplier = await storage.getUser(quote.supplierId);
+          const rfq = await storage.getRFQById(quote.rfqId);
+          
+          if (supplier && rfq) {
+            // Create notification
+            await storage.createNotification({
+              userId: supplier.id,
+              type: 'status_update',
+              title: 'Quote Not Selected',
+              message: `Your quote for "${rfq.projectName}" was not selected.${adminFeedback ? ' Admin feedback: ' + adminFeedback : ''}`,
+              relatedId: quoteId
+            });
+
+            // Send email notification
+            try {
+              await emailService.sendQuoteNotSelectedNotification(
+                supplier.email,
+                supplier.name || 'Supplier',
+                {
+                  projectName: rfq.projectName,
+                  quoteAmount: quote.price.toString(),
+                  adminFeedback: adminFeedback
+                }
+              );
+            } catch (emailError) {
+              console.error('Failed to send quote not selected email:', emailError);
             }
           }
         }
@@ -3725,18 +3802,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sqteNumber = await storage.generateSqteNumber();
       await storage.assignSqteNumber(rfq.id, sqteNumber);
 
-      // If files were attached, link them to the RFQ
+      // If files were attached, update their linking to the created RFQ
       if (attachedFiles && attachedFiles.length > 0) {
         for (const filePath of attachedFiles) {
-          await storage.createFile({
-            userId: req.user.id,
-            fileName: path.basename(filePath),
-            fileUrl: filePath,
-            fileSize: 0,
-            fileType: 'step', // Default to step, will be updated by file upload handler
-            linkedToType: 'rfq',
-            linkedToId: rfq.id
-          });
+          // Find existing file record by file path and update its linking
+          const existingFile = await storage.getFileByPath(filePath);
+          if (existingFile) {
+            await storage.updateFile(existingFile.id, {
+              linkedToType: 'rfq',
+              linkedToId: rfq.id
+            });
+          }
         }
       }
 
@@ -5516,6 +5592,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error marking thread as read:', error);
       res.status(500).json({ error: 'Failed to mark thread as read' });
+    }
+  });
+
+  // Test email endpoint
+  app.post('/api/test/email', async (req, res) => {
+    try {
+      const { email, type, projectName } = req.body;
+      
+      if (type === 'quote-accepted') {
+        await emailService.sendQuoteAcceptedNotification(
+          email,
+          'Test Supplier',
+          {
+            projectName: projectName || 'Test Project - Compressor Piston',
+            quoteAmount: '2500.00',
+            leadTime: 14
+          }
+        );
+      } else if (type === 'quote-not-selected') {
+        await emailService.sendQuoteNotSelectedNotification(
+          email,
+          'Test Supplier',
+          {
+            projectName: projectName || 'Test Project - Compressor Piston',
+            quoteAmount: '2500.00',
+            adminFeedback: 'Thank you for your submission. While your quote was competitive, we selected another supplier based on lead time requirements.'
+          }
+        );
+      }
+      
+      res.json({ success: true, message: 'Test email sent successfully' });
+    } catch (error) {
+      console.error('Test email error:', error);
+      res.status(500).json({ success: false, message: 'Failed to send test email' });
     }
   });
 

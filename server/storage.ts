@@ -101,7 +101,9 @@ export interface IStorage {
   getFilesByRFQId(rfqId: string): Promise<File[]>;
   getFilesByUserId(userId: string): Promise<File[]>;
   getFilesByLinkedId(linkedToId: string, linkedToType: string): Promise<File[]>;
+  getFileByPath(filePath: string): Promise<File | undefined>;
   createFile(file: InsertFile): Promise<File>;
+  updateFile(id: string, updateData: Partial<InsertFile>): Promise<void>;
   deleteFile(id: string): Promise<void>;
 
   // Sales quote operations
@@ -733,6 +735,11 @@ export class DatabaseStorage implements IStorage {
 
   async getFile(id: string): Promise<File | undefined> {
     const [file] = await db.select().from(files).where(eq(files.id, id));
+    return file;
+  }
+
+  async getFileByPath(filePath: string): Promise<File | undefined> {
+    const [file] = await db.select().from(files).where(eq(files.fileUrl, filePath));
     return file;
   }
 
@@ -1870,11 +1877,17 @@ export class DatabaseStorage implements IStorage {
     return newQuote;
   }
 
-  async updateSupplierQuoteStatus(id: string, status: 'accepted' | 'rejected'): Promise<void> {
-    await db.update(supplierQuotes).set({ 
+  async updateSupplierQuoteStatus(id: string, status: 'accepted' | 'not_selected', adminFeedback?: string): Promise<void> {
+    const updateData: any = { 
       status, 
       respondedAt: new Date() 
-    }).where(eq(supplierQuotes.id, id));
+    };
+    
+    if (adminFeedback) {
+      updateData.adminFeedback = adminFeedback;
+    }
+    
+    await db.update(supplierQuotes).set(updateData).where(eq(supplierQuotes.id, id));
   }
 
   // RFQ assignment operations

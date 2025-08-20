@@ -101,6 +101,7 @@ export const rfqs = pgTable("rfqs", {
   tolerance: varchar("tolerance").notNull(),
   quantity: integer("quantity").notNull(),
   notes: text("notes"),
+  specialInstructions: text("special_instructions"),
   status: rfqStatusEnum("status").default("submitted"),
   // SQTE number for RFQs sent to suppliers (replaces referenceNumber)
   sqteNumber: varchar("sqte_number"), // e.g., "SQTE-001", "SQTE-002"
@@ -219,7 +220,7 @@ export const supplierQuotes = pgTable("supplier_quotes", {
   leadTime: integer("lead_time").notNull(), // in days
   notes: text("notes"),
   quoteFileUrl: text("quote_file_url"),
-  status: text("status", { enum: ["pending", "accepted", "rejected"] }).default("pending"),
+  status: text("status", { enum: ["pending", "accepted", "not_selected"] }).default("pending"),
   // Enhanced pricing breakdown fields
   currency: varchar("currency").default("USD"), // USD, EUR, CAD, etc.
   toolingCost: decimal("tooling_cost", { precision: 10, scale: 2 }), // One-time tooling/setup cost
@@ -239,6 +240,7 @@ export const supplierQuotes = pgTable("supplier_quotes", {
   paymentTerms: varchar("payment_terms"), // e.g., "Net 30", "50% upfront", etc.
   submittedAt: timestamp("submitted_at").defaultNow(),
   respondedAt: timestamp("responded_at"),
+  adminFeedback: text("admin_feedback"), // Admin comment when not selecting a quote
 });
 
 // RFQ assignments table - Links RFQs to suppliers

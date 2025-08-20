@@ -107,7 +107,7 @@ export default function CreateQuote() {
           formData.append('files', file);
         });
 
-        const uploadResponse = await fetch('/api/upload-files', {
+        const uploadResponse = await fetch('/api/admin/files/upload', {
           method: 'POST',
           body: formData,
           headers: {
@@ -120,7 +120,7 @@ export default function CreateQuote() {
         }
 
         const uploadResult = await uploadResponse.json();
-        uploadedFiles = uploadResult.files;
+        uploadedFiles = uploadResult.map((file: any) => file.fileUrl);
       } catch (error) {
         toast({
           title: "Error",
@@ -145,8 +145,15 @@ export default function CreateQuote() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setSelectedFiles(Array.from(e.target.files));
+      const newFiles = Array.from(e.target.files);
+      setSelectedFiles(prev => [...prev, ...newFiles]);
+      // Clear the input so the same file can be selected again if needed
+      e.target.value = '';
     }
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   // Filter suppliers based on criteria
@@ -699,14 +706,31 @@ export default function CreateQuote() {
                     accept=".pdf,.dwg,.step,.stp,.igs,.iges"
                   />
                   <p className="text-sm text-gray-500 mt-1">
-                    Supported formats: PDF, DWG, STEP, IGES (Max 10MB each)
+                    Select multiple files - each file will be added to your attachment list. Supported formats: PDF, DWG, STEP, IGES (Max 10MB each)
                   </p>
                   {selectedFiles.length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-sm font-medium">Selected files:</p>
-                      {selectedFiles.map((file, index) => (
-                        <p key={index} className="text-sm text-gray-600">• {file.name}</p>
-                      ))}
+                    <div className="mt-3">
+                      <p className="text-sm font-medium mb-2">Selected files ({selectedFiles.length}):</p>
+                      <div className="space-y-2 max-h-32 overflow-y-auto">
+                        {selectedFiles.map((file, index) => (
+                          <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded border">
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-gray-500" />
+                              <span className="text-sm text-gray-700 truncate max-w-xs">{file.name}</span>
+                              <span className="text-xs text-gray-500">({(file.size / 1024).toFixed(1)} KB)</span>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeFile(index)}
+                              className="h-6 w-6 p-0 text-gray-400 hover:text-red-500"
+                            >
+                              ✕
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
