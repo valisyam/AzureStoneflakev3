@@ -1,12 +1,6 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from "@shared/schema";
-
-// Configure Neon for serverless environments
-neonConfig.webSocketConstructor = ws;
-neonConfig.poolQueryViaFetch = true;
-neonConfig.fetchEndpoint = (host) => `https://${host}/sql`;
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -14,11 +8,13 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// Create pool with proper connection settings for Replit
-export const pool = new Pool({ 
+// Create pool with SSL required for Azure PostgreSQL
+export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 5, // Reduce connection pool size for stability
-  maxUses: 7500,
+  // Azure requires SSL; if your connection string doesn't already include sslmode=require,
+  // keep this enabled to avoid handshake issues.
+  ssl: { rejectUnauthorized: false },
+  max: 10,
   idleTimeoutMillis: 30000,
 });
 
