@@ -1,0 +1,3 @@
+# This is a placeholder for XKT files
+# In production, uploaded STEP files would be converted to XKT format
+# and stored in this directory for the xeokit viewer to load
