@@ -1,0 +1,58 @@
+name: CI → Build & Deploy
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install & Build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Prepare deploy folder
+        run: |
+          rm -rf deploy
+          mkdir deploy
+          cp -r dist deploy/dist
+          cp -r server deploy/server
+          cat > deploy/package.json <<'JSON'
+          {
+            "name":"stoneflake-deploy",
+            "version":"1.0.0",
+            "main":"dist/index.js",
+            "scripts":{"start":"node dist/index.js"},
+            "engines":{"node":">=20"}
+          }
+          JSON
+          zip -r deploy.zip deploy
+
+      - name: 'Login to Azure using Service Principal'
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Disable server-side build on App Service
+        run: |
+          az webapp config appsettings set \
+            --resource-group ${{ secrets.AZURE_RG }} \
+            --name ${{ secrets.AZURE_WEBAPP_NAME }} \
+            --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
+          package: deploy.zip

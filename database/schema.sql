@@ -16,6 +16,7 @@ SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
 
+
 ALTER TABLE IF EXISTS ONLY public.supplier_quotes DROP CONSTRAINT IF EXISTS supplier_quotes_supplier_id_fkey;
 ALTER TABLE IF EXISTS ONLY public.supplier_quotes DROP CONSTRAINT IF EXISTS supplier_quotes_rfq_id_fkey;
 ALTER TABLE IF EXISTS ONLY public.shipments DROP CONSTRAINT IF EXISTS shipments_order_id_sales_orders_id_fk;
@@ -84,11 +85,10 @@ CREATE TYPE public.file_type AS ENUM (
     'step',
     'pdf',
     'excel',
-    'image'
+    'image',
+    'quote'
 );
 
-
-ALTER TYPE public.file_type OWNER TO neondb_owner;
 
 --
 -- Name: linked_to_type; Type: TYPE; Schema: public; Owner: neondb_owner
@@ -97,16 +97,24 @@ ALTER TYPE public.file_type OWNER TO neondb_owner;
 CREATE TYPE public.linked_to_type AS ENUM (
     'rfq',
     'order',
-    'quality_check'
+    'quality_check',
+    'supplier_quote'
 );
 
 
-ALTER TYPE public.linked_to_type OWNER TO neondb_owner;
-
 --
--- Name: order_status; Type: TYPE; Schema: public; Owner: neondb_owner
+-- Name: rfq_status; Type: TYPE; Schema: public; Owner: neondb_owner
 --
 
+CREATE TYPE public.rfq_status AS ENUM (
+    'submitted',
+    'quoted',
+    'accepted',
+    'declined',
+    'sent_to_suppliers'
+);
+
+-- Create order_status enum (moved earlier so tables can reference it)
 CREATE TYPE public.order_status AS ENUM (
     'waiting_for_po',
     'pending',
@@ -119,22 +127,6 @@ CREATE TYPE public.order_status AS ENUM (
     'delivered'
 );
 
-
-ALTER TYPE public.order_status OWNER TO neondb_owner;
-
---
--- Name: rfq_status; Type: TYPE; Schema: public; Owner: neondb_owner
---
-
-CREATE TYPE public.rfq_status AS ENUM (
-    'submitted',
-    'quoted',
-    'accepted',
-    'declined'
-);
-
-
-ALTER TYPE public.rfq_status OWNER TO neondb_owner;
 
 SET default_tablespace = '';
 
@@ -163,8 +155,6 @@ CREATE TABLE public.companies (
 );
 
 
-ALTER TABLE public.companies OWNER TO neondb_owner;
-
 --
 -- Name: db_test_markers; Type: TABLE; Schema: public; Owner: neondb_owner
 --
@@ -175,7 +165,8 @@ CREATE TABLE public.db_test_markers (
 );
 
 
-ALTER TABLE public.db_test_markers OWNER TO neondb_owner;
+-- ownership removed for portability
+-- ownership removed for portability
 
 --
 -- Name: files; Type: TABLE; Schema: public; Owner: neondb_owner
@@ -197,7 +188,8 @@ CREATE TABLE public.files (
 );
 
 
-ALTER TABLE public.files OWNER TO neondb_owner;
+-- ownership removed for portability
+-- ownership removed for portability
 
 --
 -- Name: message_attachments; Type: TABLE; Schema: public; Owner: neondb_owner
@@ -215,7 +207,8 @@ CREATE TABLE public.message_attachments (
 );
 
 
-ALTER TABLE public.message_attachments OWNER TO neondb_owner;
+-- ownership removed for portability
+-- ownership removed for portability
 
 --
 -- Name: messages; Type: TABLE; Schema: public; Owner: neondb_owner
@@ -238,7 +231,8 @@ CREATE TABLE public.messages (
 );
 
 
-ALTER TABLE public.messages OWNER TO neondb_owner;
+-- ownership removed for portability
+-- ownership removed for portability
 
 --
 -- Name: notifications; Type: TABLE; Schema: public; Owner: neondb_owner
@@ -256,7 +250,8 @@ CREATE TABLE public.notifications (
 );
 
 
-ALTER TABLE public.notifications OWNER TO neondb_owner;
+-- ownership removed for portability
+-- ownership removed for portability
 
 --
 -- Name: purchase_orders; Type: TABLE; Schema: public; Owner: neondb_owner
@@ -282,7 +277,8 @@ CREATE TABLE public.purchase_orders (
 );
 
 
-ALTER TABLE public.purchase_orders OWNER TO neondb_owner;
+-- ownership removed for portability
+-- ownership removed for portability
 
 --
 -- Name: rfq_assignments; Type: TABLE; Schema: public; Owner: neondb_owner
@@ -297,7 +293,8 @@ CREATE TABLE public.rfq_assignments (
 );
 
 
-ALTER TABLE public.rfq_assignments OWNER TO neondb_owner;
+-- ownership removed for portability
+-- ownership removed for portability
 
 --
 -- Name: rfqs; Type: TABLE; Schema: public; Owner: neondb_owner
@@ -324,7 +321,8 @@ CREATE TABLE public.rfqs (
 );
 
 
-ALTER TABLE public.rfqs OWNER TO neondb_owner;
+-- ownership removed for portability
+-- ownership removed for portability
 
 --
 -- Name: sales_invoices; Type: TABLE; Schema: public; Owner: neondb_owner
@@ -342,7 +340,8 @@ CREATE TABLE public.sales_invoices (
 );
 
 
-ALTER TABLE public.sales_invoices OWNER TO neondb_owner;
+-- ownership removed for portability
+-- ownership removed for portability
 
 --
 -- Name: sales_orders; Type: TABLE; Schema: public; Owner: neondb_owner
@@ -381,7 +380,8 @@ CREATE TABLE public.sales_orders (
 );
 
 
-ALTER TABLE public.sales_orders OWNER TO neondb_owner;
+-- ownership removed for portability
+-- ownership removed for portability
 
 --
 -- Name: sales_quotes; Type: TABLE; Schema: public; Owner: neondb_owner
@@ -406,7 +406,8 @@ CREATE TABLE public.sales_quotes (
 );
 
 
-ALTER TABLE public.sales_quotes OWNER TO neondb_owner;
+-- ownership removed for portability
+-- ownership removed for portability
 
 --
 -- Name: shipments; Type: TABLE; Schema: public; Owner: neondb_owner
@@ -427,7 +428,8 @@ CREATE TABLE public.shipments (
 );
 
 
-ALTER TABLE public.shipments OWNER TO neondb_owner;
+-- ownership removed for portability
+-- ownership removed for portability
 
 --
 -- Name: supplier_quotes; Type: TABLE; Schema: public; Owner: neondb_owner
@@ -465,7 +467,8 @@ CREATE TABLE public.supplier_quotes (
 );
 
 
-ALTER TABLE public.supplier_quotes OWNER TO neondb_owner;
+-- ownership removed for portability
+-- ownership removed for portability
 
 --
 -- Name: users; Type: TABLE; Schema: public; Owner: neondb_owner
@@ -517,7 +520,8 @@ CREATE TABLE public.users (
 );
 
 
-ALTER TABLE public.users OWNER TO neondb_owner;
+-- ownership removed for portability
+-- ownership removed for portability
 
 --
 -- Name: companies companies_customer_number_key; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
@@ -849,14 +853,16 @@ ALTER TABLE ONLY public.supplier_quotes
 -- Name: DEFAULT PRIVILEGES FOR SEQUENCES; Type: DEFAULT ACL; Schema: public; Owner: cloud_admin
 --
 
-ALTER DEFAULT PRIVILEGES FOR ROLE cloud_admin IN SCHEMA public GRANT ALL ON SEQUENCES TO neon_superuser WITH GRANT OPTION;
+-- default privileges removed for portability
+-- Default privileges removed for portability (original dump had cloud_admin/neon_superuser grants)
 
 
 --
 -- Name: DEFAULT PRIVILEGES FOR TABLES; Type: DEFAULT ACL; Schema: public; Owner: cloud_admin
 --
 
-ALTER DEFAULT PRIVILEGES FOR ROLE cloud_admin IN SCHEMA public GRANT ALL ON TABLES TO neon_superuser WITH GRANT OPTION;
+-- default privileges removed for portability
+-- Default privileges removed for portability (original dump had cloud_admin/neon_superuser grants)
 
 
 --

@@ -8,3 +8,10 @@ build/
 .env
 *.log
 database/production-data.sql
+deploy.zip
+deploy/
+.vscode/
+.idea/
+.history/
+*.sql
+*.md

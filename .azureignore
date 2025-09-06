@@ -1,0 +1,19 @@
+# Ignore everything by default
+*
+
+# Except allow these folders (whitelist)
+!dist/
+!dist/**
+!server/
+!server/**
+
+# Ignore other common files
+.vscode/
+.git/
+.gitignore
+.env
+replit.md
+*.md
+*.sql
+*.tar.gz
+*.log

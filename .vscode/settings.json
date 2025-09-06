@@ -1,7 +1,8 @@
 {
-    "appService.deploySubpath": "",
+    "appService.deploySubpath": "deploy",
     "appService.zipIgnorePattern": [
         "node_modules{,/**}",
         ".vscode{,/**}"
-    ]
+    ],
+    "appService.defaultWebAppToDeploy": "/subscriptions/663e6b85-997e-4353-b5e3-05971645aa06/resourceGroups/portalv1/providers/Microsoft.Web/sites/stoneflakewebappv3"
 }
