@@ -200,6 +200,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  // Health check endpoint
+  app.get('/api/healthz', async (req, res) => {
+    try {
+      // Perform a simple database connectivity check
+      const result = await db.execute(sql`SELECT 1 as health_check`);
+      res.json({ status: 'ok', database: 'connected', timestamp: new Date().toISOString() });
+    } catch (error) {
+      console.error('Health check failed:', error);
+      res.status(500).json({ 
+        status: 'error', 
+        database: 'disconnected', 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString() 
+      });
+    }
+  });
+
   // REMOVED: Old STEP conversion endpoint - using new X3D approach instead
   
   // Serve static files from uploads directory with proper headers

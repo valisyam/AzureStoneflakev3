@@ -1,25 +1,21 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
-import * as schema from "@shared/schema";
-
-// Configure Neon for serverless environments
-neonConfig.webSocketConstructor = ws;
-neonConfig.poolQueryViaFetch = true;
-neonConfig.fetchEndpoint = (host) => `https://${host}/sql`;
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import * as schema from '@shared/schema';
 
 if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
+  throw new Error('DATABASE_URL must be set');
 }
 
-// Create pool with proper connection settings for Replit
-export const pool = new Pool({ 
+const url = new URL(process.env.DATABASE_URL);
+const sslMode = url.searchParams.get('sslmode');
+const needsSSL = (sslMode === 'require' || sslMode === 'prefer' || url.hostname.includes('azure.com'));
+
+export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 5, // Reduce connection pool size for stability
-  maxUses: 7500,
+  ssl: needsSSL ? { rejectUnauthorized: false } : undefined,
+  max: 10,
   idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
 });
 
-export const db = drizzle({ client: pool, schema });
+export const db = drizzle(pool, { schema });
