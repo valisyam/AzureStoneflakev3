@@ -2,6 +2,49 @@
 
 A stone fabrication management platform built with React, Express, and PostgreSQL.
 
+## File Storage Configuration
+
+### Azure Blob Storage
+
+The application uses Azure Blob Storage for file uploads instead of local disk storage. This provides better scalability and reliability for production deployments.
+
+#### Required Environment Variables
+
+```bash
+# Azure Storage Connection String (Required)
+AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=https;AccountName=yourstorageaccount;AccountKey=youraccountkey;EndpointSuffix=core.windows.net
+
+# Azure Blob Container Name (Optional - defaults to 'app-files')
+AZURE_BLOB_CONTAINER=app-files
+```
+
+#### Getting Azure Storage Connection String
+
+1. Go to [Azure Portal](https://portal.azure.com)
+2. Navigate to your Storage Account
+3. Go to **Security + networking** > **Access keys**
+4. Copy the **Connection string** from key1 or key2
+
+#### File Organization
+
+Files are organized in Azure Blob Storage using a folder-like structure:
+
+- **Supplier Invoices**: `invoices/{purchaseOrderId}/{filename}`
+- **Quality Check Files**: `qc/{orderId}/{filename}`
+- **RFQ Files**: `rfqs/{rfqId}/{filename}`
+- **Quote Files**: `quotes/{rfqId}/{filename}`
+- **General Files**: `files/{linkedId}/{filename}`
+
+#### File Access
+
+- **Upload**: Files are uploaded directly to Azure Blob Storage using memory storage (no temporary files on disk)
+- **Download**: Files are streamed directly from Azure Blob Storage via `/uploads/{filename}` URLs
+- **Database**: File URLs are stored in the database with `/uploads/` prefix for frontend compatibility
+
+#### Migration from Local Storage
+
+See `AZURE_BLOB_MIGRATION.md` for detailed migration information and testing procedures.
+
 ## Azure PostgreSQL Setup
 
 This application has been configured to work with Azure Database for PostgreSQL using the standard `pg` driver for reliable connectivity.
