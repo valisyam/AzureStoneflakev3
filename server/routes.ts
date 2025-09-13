@@ -15,6 +15,7 @@ import archiver from "archiver";
 import { insertUserSchema, insertRfqSchema, insertFileSchema } from "@shared/schema";
 import { emailService } from "./emailService";
 import { sendAdminNotification, sendSupplierRfqNotification, sendCustomerQuoteNotification } from "./emailNotifications";
+import { uploadBuffer, streamToResponse, generateSafeBlobName } from "./services/azureBlob";
 
 
 
@@ -90,26 +91,9 @@ If you didn't sign up for S-Hub, please ignore this email.`
   }
 };
 
-// Multer configuration for file uploads
-const storage_multer = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = 'uploads/';
-    // Ensure upload directory exists
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    // Generate unique filename with original extension
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, file.fieldname + '-' + uniqueSuffix + ext);
-  }
-});
-
+// Multer configuration for file uploads - using memory storage for Azure Blob
 const upload = multer({
-  storage: storage_multer,
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB limit
   },
@@ -2522,10 +2506,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           fileType = 'image';
         }
 
+        // Generate safe blob name and upload to Azure Blob Storage
+        const safeName = generateSafeBlobName(file.originalname);
+        const blobName = `qc/${orderId}/${safeName}`;
+        
+        // Determine content type
+        let contentType = 'application/octet-stream';
+        if (fileType === 'pdf') contentType = 'application/pdf';
+        else if (fileType === 'excel') contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        else if (fileType === 'image') {
+          if (fileExt === '.jpg' || fileExt === '.jpeg') contentType = 'image/jpeg';
+          else if (fileExt === '.png') contentType = 'image/png';
+          else if (fileExt === '.gif') contentType = 'image/gif';
+        }
+        
+        await uploadBuffer(blobName, file.buffer, contentType);
+
         const fileRecord = await storage.createFile({
           userId: req.user.id,
           fileName: file.originalname,
-          fileUrl: `/${file.path}`, // Add leading slash for proper URL
+          fileUrl: `/uploads/${safeName}`, // Store with /uploads/ prefix for compatibility
           fileSize: file.size,
           fileType: fileType,
           linkedToType: 'quality_check',
@@ -4157,8 +4157,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Serve static files
-  app.use('/uploads', express.static('uploads'));
+  // Stream files from Azure Blob Storage (replaces static uploads serving)
+  app.get('/uploads/:name', async (req: any, res) => {
+    try {
+      const { name } = req.params;
+      let blobName: string | null = null;
+
+      // First, check if this is a supplier invoice by looking in purchase orders table
+      const poWithInvoice = await db
+        .select()
+        .from(purchaseOrders)
+        .where(eq(purchaseOrders.supplierInvoiceUrl, `/uploads/${name}`))
+        .limit(1);
+
+      if (poWithInvoice.length > 0) {
+        // This is a supplier invoice
+        const po = poWithInvoice[0];
+        blobName = `invoices/${po.id}/${name}`;
+      } else {
+        // Check files table for other file types
+        const file = await storage.getFileByPath(`/uploads/${name}`);
+        if (file) {
+          // Map linkedToType to blob prefix
+          switch (file.linkedToType) {
+            case 'quality_check':
+              blobName = `qc/${file.linkedToId}/${name}`;
+              break;
+            case 'rfq':
+              blobName = `rfqs/${file.linkedToId}/${name}`;
+              break;
+            case 'supplier_quote':
+              blobName = `quotes/${file.linkedToId}/${name}`;
+              break;
+            case 'order':
+              blobName = `orders/${file.linkedToId}/${name}`;
+              break;
+            default:
+              // Fallback for other types
+              blobName = `files/${file.linkedToId}/${name}`;
+              break;
+          }
+        }
+      }
+
+      if (!blobName) {
+        return res.status(404).json({ message: 'File not found' });
+      }
+
+      // Stream the blob to response
+      const success = await streamToResponse(blobName, res);
+      if (!success) {
+        return res.status(404).json({ message: 'File not found in storage' });
+      }
+    } catch (error) {
+      console.error('Error streaming file:', error);
+      res.status(500).json({ message: 'Failed to retrieve file' });
+    }
+  });
   
   // Serve converted XKT model files
   app.use('/models', express.static('public/models'));
@@ -5094,24 +5149,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate file type - must be PDF
       const originalExt = path.extname(req.file.originalname).toLowerCase();
       if (originalExt !== '.pdf') {
-        try {
-          fs.unlinkSync(req.file.path);
-        } catch (e) {
-          console.error('Failed to remove invalid file:', e);
-        }
         return res.status(400).json({ message: 'Only PDF files are allowed for invoices' });
       }
 
-      // Additional validation: check if file content is actually a PDF
-      const fileBuffer = fs.readFileSync(req.file.path);
-      const isPDF = fileBuffer.toString('utf8', 0, 4) === '%PDF';
+      // Additional validation: check if file content is actually a PDF (using buffer instead of file path)
+      const isPDF = req.file.buffer.toString('utf8', 0, 4) === '%PDF';
       
       if (!isPDF) {
-        try {
-          fs.unlinkSync(req.file.path);
-        } catch (e) {
-          console.error('Failed to remove invalid file:', e);
-        }
         return res.status(400).json({ message: 'File content is not a valid PDF' });
       }
       
@@ -5129,7 +5173,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Invoices can only be uploaded for delivered orders' });
       }
       
-      const invoiceUrl = `/uploads/${path.basename(req.file.path)}`;
+      // Generate safe blob name and upload to Azure Blob Storage
+      const safeName = generateSafeBlobName(req.file.originalname);
+      const blobName = `invoices/${poId}/${safeName}`;
+      
+      await uploadBuffer(blobName, req.file.buffer, 'application/pdf');
+      
+      // Store URL in database (keeping /uploads/ prefix for compatibility)
+      const invoiceUrl = `/uploads/${safeName}`;
       
       // Update purchase order with invoice
       await storage.updatePurchaseOrder(poId, {
@@ -5157,26 +5208,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate file type - must be PDF
       const originalExt = path.extname(req.file.originalname).toLowerCase();
       if (originalExt !== '.pdf') {
-        // Remove the uploaded file if it's not a PDF
-        try {
-          fs.unlinkSync(req.file.path);
-        } catch (e) {
-          console.error('Failed to remove invalid file:', e);
-        }
         return res.status(400).json({ message: 'Only PDF files are allowed for invoices' });
       }
 
-      // Additional validation: check if file content is actually a PDF
-      const fileBuffer = fs.readFileSync(req.file.path);
-      const isPDF = fileBuffer.toString('utf8', 0, 4) === '%PDF';
+      // Additional validation: check if file content is actually a PDF (using buffer instead of file path)
+      const isPDF = req.file.buffer.toString('utf8', 0, 4) === '%PDF';
       
       if (!isPDF) {
-        // Remove the uploaded file if it's not actually a PDF
-        try {
-          fs.unlinkSync(req.file.path);
-        } catch (e) {
-          console.error('Failed to remove invalid file:', e);
-        }
         return res.status(400).json({ message: 'File content is not a valid PDF' });
       }
       
@@ -5194,7 +5232,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Invoices can only be uploaded for delivered orders' });
       }
       
-      const invoiceUrl = `/uploads/${path.basename(req.file.path)}`;
+      // Generate safe blob name and upload to Azure Blob Storage
+      const safeName = generateSafeBlobName(req.file.originalname);
+      const blobName = `invoices/${poId}/${safeName}`;
+      
+      await uploadBuffer(blobName, req.file.buffer, 'application/pdf');
+      
+      // Store URL in database (keeping /uploads/ prefix for compatibility)
+      const invoiceUrl = `/uploads/${safeName}`;
       
       // Update purchase order with invoice
       await storage.updatePurchaseOrder(poId, {
