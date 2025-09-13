@@ -1212,7 +1212,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let quoteFileUrl = null;
       if (req.file) {
-        quoteFileUrl = req.file.path;
+        // Generate blob name for quote file
+        const blobName = azureBlobService.generateBlobName('quote', req.params.id, req.file.originalname);
+        
+        // Upload to Azure Blob Storage
+        await azureBlobService.uploadBuffer(blobName, req.file.buffer, req.file.mimetype);
+        
+        // Generate the URL that frontend expects
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const sanitizedName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+        quoteFileUrl = `/uploads/${uniqueSuffix}-${sanitizedName}`;
       }
 
       const quote = await storage.createQuote({
@@ -1380,7 +1389,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       let purchaseOrderUrl = null;
       if (req.file) {
-        purchaseOrderUrl = req.file.path;
+        // Generate blob name for purchase order file
+        const blobName = azureBlobService.generateBlobName('purchase_order', req.params.id, req.file.originalname);
+        
+        // Upload to Azure Blob Storage
+        await azureBlobService.uploadBuffer(blobName, req.file.buffer, req.file.mimetype);
+        
+        // Generate the URL that frontend expects
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const sanitizedName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+        purchaseOrderUrl = `/uploads/${uniqueSuffix}-${sanitizedName}`;
       }
 
       // Convert frontend status to backend status
@@ -1420,15 +1438,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'Access denied' });
       }
 
+      // Generate blob name for purchase order file
+      const blobName = azureBlobService.generateBlobName('purchase_order', quoteId, req.file.originalname);
+      
+      // Upload to Azure Blob Storage
+      await azureBlobService.uploadBuffer(blobName, req.file.buffer, req.file.mimetype);
+      
+      // Generate the URL that frontend expects
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const sanitizedName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const purchaseOrderUrl = `/uploads/${uniqueSuffix}-${sanitizedName}`;
+
       // Update the quote with PO file URL and number
       await storage.updateQuote(quoteId, {
-        purchaseOrderUrl: req.file.path,
+        purchaseOrderUrl: purchaseOrderUrl,
         purchaseOrderNumber: purchaseOrderNumber
       });
 
       res.json({ 
         message: 'Purchase order uploaded successfully',
-        purchaseOrderUrl: req.file.path,
+        purchaseOrderUrl: purchaseOrderUrl,
         purchaseOrderNumber: purchaseOrderNumber
       });
     } catch (error) {
@@ -3266,7 +3295,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Add file URL if uploaded
       if (req.file) {
-        quoteData.quoteFileUrl = `/${req.file.path}`;
+        // Generate blob name for supplier quote file
+        const blobName = azureBlobService.generateBlobName('quote', quoteData.rfqId, req.file.originalname);
+        
+        // Upload to Azure Blob Storage
+        await azureBlobService.uploadBuffer(blobName, req.file.buffer, req.file.mimetype);
+        
+        // Generate the URL that frontend expects
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const sanitizedName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+        quoteData.quoteFileUrl = `/uploads/${uniqueSuffix}-${sanitizedName}`;
       }
 
       const newQuote = await storage.createSupplierQuote(quoteData);
@@ -4443,13 +4481,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const attachments = [];
         if (req.files && req.files.length > 0) {
           for (const file of req.files as Express.Multer.File[]) {
+            // Generate blob name for message attachment
+            const blobName = azureBlobService.generateBlobName('message', message.id, file.originalname);
+            
+            // Upload to Azure Blob Storage
+            await azureBlobService.uploadBuffer(blobName, file.buffer, file.mimetype);
+            
+            // Generate the URL that frontend expects
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+            const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+            const filePath = `/uploads/${uniqueSuffix}-${sanitizedName}`;
+            
             const attachment = await storage.createMessageAttachment({
               messageId: message.id,
-              fileName: file.filename,
+              fileName: sanitizedName,
               originalName: file.originalname,
               fileSize: file.size,
               mimeType: file.mimetype,
-              filePath: file.path,
+              filePath: filePath,
             });
             attachments.push(attachment);
           }
@@ -4581,13 +4630,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const attachments = [];
         if (req.files && req.files.length > 0) {
           for (const file of req.files as Express.Multer.File[]) {
+            // Generate blob name for message attachment
+            const blobName = azureBlobService.generateBlobName('message', message.id, file.originalname);
+            
+            // Upload to Azure Blob Storage
+            await azureBlobService.uploadBuffer(blobName, file.buffer, file.mimetype);
+            
+            // Generate the URL that frontend expects
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+            const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+            const filePath = `/uploads/${uniqueSuffix}-${sanitizedName}`;
+            
             const attachment = await storage.createMessageAttachment({
               messageId: message.id,
-              fileName: file.filename,
+              fileName: sanitizedName,
               originalName: file.originalname,
               fileSize: file.size,
               mimeType: file.mimetype,
-              filePath: file.path,
+              filePath: filePath,
             });
             attachments.push(attachment);
           }
@@ -4639,22 +4699,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(403).json({ message: 'Access denied' });
         }
 
-        // Check if file exists
-        const fs = await import('fs');
-        const path = await import('path');
-        
-        if (!fs.existsSync(attachment.filePath)) {
-          return res.status(404).json({ message: 'File not found' });
-        }
+        // Get blob name from attachment file path  
+        const fileName = path.basename(attachment.filePath);
+        const blobName = `messages/${attachment.messageId}/${fileName}`;
 
         // Set headers for file download
         res.setHeader('Content-Disposition', `attachment; filename="${attachment.originalName}"`);
-        res.setHeader('Content-Type', attachment.mimeType);
-        res.setHeader('Content-Length', attachment.fileSize);
 
-        // Stream the file
-        const fileStream = fs.createReadStream(attachment.filePath);
-        fileStream.pipe(res);
+        // Stream file from Azure Blob Storage
+        await azureBlobService.streamToResponse(blobName, res);
       } catch (error) {
         console.error('Error downloading attachment:', error);
         res.status(500).json({ message: 'Failed to download attachment' });
@@ -4777,6 +4830,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ message: 'Supplier quote not found' });
         }
 
+        // Handle PO file upload if provided
+        let poFileUrl = null;
+        if (req.file) {
+          // Generate blob name for purchase order file
+          const blobName = azureBlobService.generateBlobName('purchase_order', supplierQuoteId, req.file.originalname);
+          
+          // Upload to Azure Blob Storage
+          await azureBlobService.uploadBuffer(blobName, req.file.buffer, req.file.mimetype);
+          
+          // Generate the URL that frontend expects
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+          const sanitizedName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+          poFileUrl = `/uploads/${uniqueSuffix}-${sanitizedName}`;
+        }
+
         const purchaseOrder = await storage.createPurchaseOrder({
           supplierQuoteId: supplierQuoteId,
           supplierId: supplierQuote.supplierId,
@@ -4784,7 +4852,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalAmount: supplierQuote.price,
           deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
           notes: notes || null,
-          poFileUrl: req.file ? req.file.path : null
+          poFileUrl: poFileUrl
         });
 
         // Get supplier and RFQ info for notifications
@@ -4828,12 +4896,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       } else if (supplierId && totalAmount) {
         // Manual PO creation
+        // Handle PO file upload if provided
+        let poFileUrl = null;
+        if (req.file) {
+          // Generate blob name for purchase order file  
+          const blobName = azureBlobService.generateBlobName('purchase_order', supplierId, req.file.originalname);
+          
+          // Upload to Azure Blob Storage
+          await azureBlobService.uploadBuffer(blobName, req.file.buffer, req.file.mimetype);
+          
+          // Generate the URL that frontend expects
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+          const sanitizedName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+          poFileUrl = `/uploads/${uniqueSuffix}-${sanitizedName}`;
+        }
+        
         const purchaseOrder = await storage.createPurchaseOrder({
           supplierId,
           totalAmount: totalAmount.toString(),
           deliveryDate: deliveryDate ? new Date(deliveryDate) : undefined,
           notes: notes || undefined,
-          poFileUrl: req.file ? req.file.path : null,
+          poFileUrl: poFileUrl,
           supplierQuoteId: null,
           rfqId: null,
         });
@@ -5840,13 +5923,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Handle file attachments if any
       if (req.files && req.files.length > 0) {
         for (const file of req.files) {
+          // Generate blob name for message attachment
+          const blobName = azureBlobService.generateBlobName('message', message.id, file.originalname);
+          
+          // Upload to Azure Blob Storage
+          await azureBlobService.uploadBuffer(blobName, file.buffer, file.mimetype);
+          
+          // Generate the URL that frontend expects
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+          const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+          const filePath = `/uploads/${uniqueSuffix}-${sanitizedName}`;
+          
           await storage.createMessageAttachment({
             messageId: message.id,
-            fileName: file.filename,
+            fileName: sanitizedName,
             originalName: file.originalname,
             fileSize: file.size,
             mimeType: file.mimetype,
-            filePath: file.path
+            filePath: filePath
           });
         }
       }

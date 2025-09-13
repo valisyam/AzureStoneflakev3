@@ -3,6 +3,31 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import "./messageNotificationService"; // Initialize message notification service
 
+// Validate required environment variables for Azure Blob Storage
+function validateEnvironmentVariables() {
+  const requiredEnvVars = [
+    'AZURE_STORAGE_CONNECTION_STRING',
+    'AZURE_BLOB_CONTAINER'
+  ];
+
+  const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+  
+  if (missingVars.length > 0) {
+    console.error('❌ Missing required environment variables for Azure Blob Storage:');
+    missingVars.forEach(varName => {
+      console.error(`   - ${varName}`);
+    });
+    console.error('   These variables must be set in Azure App Service Application Settings.');
+    console.error('   Exiting application...');
+    process.exit(1);
+  }
+
+  console.log('✅ Azure Blob Storage environment variables validated');
+}
+
+// Validate environment variables on startup
+validateEnvironmentVariables();
+
 const app = express();
 // Skip body parsing for multipart/form-data routes
 app.use((req, res, next) => {
