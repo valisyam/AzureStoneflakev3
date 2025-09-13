@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 
 import { storage } from "./storage";
 import { db } from "./db";
-import { rfqs as rfqsTable, users, rfqAssignments, supplierQuotes, purchaseOrders, salesOrders, companies } from "@shared/schema";
+import { rfqs as rfqsTable, users, rfqAssignments, supplierQuotes, purchaseOrders, salesOrders, companies, messageAttachments } from "@shared/schema";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
@@ -4224,6 +4224,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
               blobName = `files/${file.linkedToId}/${name}`;
               break;
           }
+        } else {
+          // Check message attachments table
+          const messageAttachment = await db
+            .select()
+            .from(messageAttachments)
+            .where(eq(messageAttachments.filePath, `/uploads/${name}`))
+            .limit(1);
+          
+          if (messageAttachment.length > 0) {
+            const attachment = messageAttachment[0];
+            blobName = `messages/${attachment.messageId}/${name}`;
+          }
         }
       }
 
@@ -4433,13 +4445,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const attachments = [];
         if (req.files && req.files.length > 0) {
           for (const file of req.files as Express.Multer.File[]) {
+            // Generate safe blob name and upload to Azure Blob Storage
+            const safeName = generateSafeBlobName(file.originalname);
+            const blobName = `messages/${message.id}/${safeName}`;
+            
+            await uploadBuffer(blobName, file.buffer, file.mimetype);
+            
             const attachment = await storage.createMessageAttachment({
               messageId: message.id,
-              fileName: file.filename,
+              fileName: safeName,
               originalName: file.originalname,
               fileSize: file.size,
               mimeType: file.mimetype,
-              filePath: file.path,
+              filePath: `/uploads/${safeName}`, // Store with /uploads/ prefix for compatibility
             });
             attachments.push(attachment);
           }
