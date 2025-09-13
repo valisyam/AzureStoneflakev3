@@ -15,6 +15,7 @@ import archiver from "archiver";
 import { insertUserSchema, insertRfqSchema, insertFileSchema } from "@shared/schema";
 import { emailService } from "./emailService";
 import { sendAdminNotification, sendSupplierRfqNotification, sendCustomerQuoteNotification } from "./emailNotifications";
+import { azureBlobService } from "./services/azureBlob";
 
 
 
@@ -90,26 +91,9 @@ If you didn't sign up for S-Hub, please ignore this email.`
   }
 };
 
-// Multer configuration for file uploads
-const storage_multer = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = 'uploads/';
-    // Ensure upload directory exists
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    // Generate unique filename with original extension
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, file.fieldname + '-' + uniqueSuffix + ext);
-  }
-});
-
+// Multer configuration for file uploads - using memory storage for Azure Blob
 const upload = multer({
-  storage: storage_multer,
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB limit
   },
@@ -968,39 +952,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else if (['.jpg', '.jpeg', '.png', '.gif'].includes(fileExt)) {
           fileType = 'image';
         }
+        // Generate blob name with appropriate prefix
+        const blobName = azureBlobService.generateBlobName(linkedToType, linkedToId, file.originalname);
         
-
+        // Upload to Azure Blob Storage
+        await azureBlobService.uploadBuffer(blobName, file.buffer, file.mimetype);
+        
+        // Store file record in database with blob path info
+        // Keep the /uploads/ prefix format for API compatibility 
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const fileUrl = `/uploads/${uniqueSuffix}-${sanitizedName}`;
 
         const fileRecord = await storage.createFile({
           userId: req.user.id,
           fileName: file.originalname,
-          fileUrl: file.path,
+          fileUrl: fileUrl,
           fileSize: file.size,
           fileType,
           linkedToType,
           linkedToId,
         });
 
-        // If it's a STEP file, trigger conversion to XKT
-        if (fileType === 'step') {
-          try {
-            const conversionResult = await stepConverter.convertStepToXkt(file.path, file.originalname);
-            
-            if (conversionResult.success && conversionResult.xktPath) {
-              // Store XKT path in file record for immediate preview
-              await storage.updateFile(fileRecord.id, {
-                glbPath: conversionResult.xktPath  // Reuse glbPath field for XKT path
-              });
-              
-              // Add XKT path to response for immediate frontend use
-              fileRecord.glbPath = conversionResult.xktPath;
-            } else {
-              console.warn(`STEP to XKT conversion failed for ${file.originalname}:`, conversionResult.error);
-            }
-          } catch (conversionError) {
-            console.error(`STEP conversion error for ${file.originalname}:`, conversionError);
-          }
-        }
+
 
         uploadedFiles.push(fileRecord);
       }
@@ -1033,11 +1007,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           fileType = 'image';
         }
 
+        // Generate blob name with appropriate prefix (temp bulk uploads)
+        const blobName = azureBlobService.generateBlobName('rfq', 'temp-bulk-quote', file.originalname);
+        
+        // Upload to Azure Blob Storage
+        await azureBlobService.uploadBuffer(blobName, file.buffer, file.mimetype);
+        
+        // Store file record in database with blob path info
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const fileUrl = `/uploads/${uniqueSuffix}-${sanitizedName}`;
+
         // Create file record with temporary linking for bulk quotes
         const fileRecord = await storage.createFile({
           userId: req.user.id,
           fileName: file.originalname,
-          fileUrl: file.path,
+          fileUrl: fileUrl,
           fileSize: file.size,
           fileType,
           linkedToType: 'rfq', // Use 'rfq' as a default for now
@@ -1091,11 +1076,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'Access denied' });
       }
 
-      if (!fs.existsSync(file.fileUrl)) {
-        return res.status(404).json({ message: 'File not found on disk' });
+      // Get blob name based on file's linkedToType and linkedToId
+      let blobName: string;
+      switch (file.linkedToType) {
+        case 'quality_check':
+          blobName = `qc/${file.linkedToId}/${path.basename(file.fileUrl)}`;
+          break;
+        case 'rfq':
+          blobName = `rfqs/${file.linkedToId}/${path.basename(file.fileUrl)}`;
+          break;
+        case 'purchase_order':
+        case 'invoice':
+          blobName = `invoices/${file.linkedToId}/${path.basename(file.fileUrl)}`;
+          break;
+        case 'quote':
+          blobName = `quotes/${file.linkedToId}/${path.basename(file.fileUrl)}`;
+          break;
+        case 'message':
+        case 'chat':
+          blobName = `messages/${file.linkedToId}/${path.basename(file.fileUrl)}`;
+          break;
+        default:
+          blobName = `files/${file.linkedToType}/${file.linkedToId}/${path.basename(file.fileUrl)}`;
+          break;
       }
 
-      res.download(file.fileUrl, file.fileName);
+      // Stream file from Azure Blob Storage with proper filename
+      res.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);
+      await azureBlobService.streamToResponse(blobName, res);
     } catch (error) {
       console.error('File download error:', error);
       res.status(500).json({ message: 'File download failed' });
@@ -1607,30 +1615,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate file type - must be PDF
       const originalExt = path.extname(req.file.originalname).toLowerCase();
       if (originalExt !== '.pdf') {
-        // Remove the uploaded file if it's not a PDF
-        try {
-          fs.unlinkSync(req.file.path);
-        } catch (e) {
-          console.error('Failed to remove invalid file:', e);
-        }
         return res.status(400).json({ message: 'Only PDF files are allowed for invoices' });
       }
 
       // Additional validation: check if file content is actually a PDF
-      const fileBuffer = fs.readFileSync(req.file.path);
-      const isPDF = fileBuffer.toString('utf8', 0, 4) === '%PDF';
+      const isPDF = req.file.buffer.toString('utf8', 0, 4) === '%PDF';
       
       if (!isPDF) {
-        // Remove the uploaded file if it's not actually a PDF
-        try {
-          fs.unlinkSync(req.file.path);
-        } catch (e) {
-          console.error('Failed to remove invalid file:', e);
-        }
         return res.status(400).json({ message: 'File content is not a valid PDF' });
       }
       
-      const invoiceUrl = `/uploads/${path.basename(req.file.path)}`;
+      // Generate blob name for invoice
+      const blobName = azureBlobService.generateBlobName('invoice', req.params.id, req.file.originalname);
+      
+      // Upload to Azure Blob Storage
+      await azureBlobService.uploadBuffer(blobName, req.file.buffer, req.file.mimetype);
+      
+      // Generate the URL that frontend expects
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const sanitizedName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const invoiceUrl = `/uploads/${uniqueSuffix}-${sanitizedName}`;
+      
       await storage.updateOrderInvoice(req.params.id, invoiceUrl);
 
       res.json({ success: true, message: 'Invoice uploaded successfully', invoiceUrl });
@@ -2469,10 +2474,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           fileType = 'image';
         }
 
+        // Generate blob name for quality check file
+        const blobName = azureBlobService.generateBlobName('quality_check', orderId, file.originalname);
+        
+        // Upload to Azure Blob Storage
+        await azureBlobService.uploadBuffer(blobName, file.buffer, file.mimetype);
+        
+        // Generate the URL that frontend expects
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const fileUrl = `/uploads/${uniqueSuffix}-${sanitizedName}`;
+
         const fileRecord = await storage.createFile({
           userId: req.user.id,
           fileName: file.originalname,
-          fileUrl: `/${file.path}`,
+          fileUrl: fileUrl,
           fileSize: file.size,
           fileType: fileType,
           linkedToType: 'quality_check',
@@ -2522,10 +2538,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           fileType = 'image';
         }
 
+        // Generate blob name for quality check file
+        const blobName = azureBlobService.generateBlobName('quality_check', orderId, file.originalname);
+        
+        // Upload to Azure Blob Storage
+        await azureBlobService.uploadBuffer(blobName, file.buffer, file.mimetype);
+        
+        // Generate the URL that frontend expects
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const fileUrl = `/uploads/${uniqueSuffix}-${sanitizedName}`;
+
         const fileRecord = await storage.createFile({
           userId: req.user.id,
           fileName: file.originalname,
-          fileUrl: `/${file.path}`, // Add leading slash for proper URL
+          fileUrl: fileUrl, // Add leading slash for proper URL
           fileSize: file.size,
           fileType: fileType,
           linkedToType: 'quality_check',
@@ -3489,7 +3516,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'No files uploaded' });
       }
 
-      const uploadedFiles = req.files.map((file: any) => file.path);
+      const uploadedFiles = [];
+      
+      for (const file of req.files) {
+        // Generate blob name for general upload (temp)
+        const blobName = azureBlobService.generateBlobName('general', 'temp-upload', file.originalname);
+        
+        // Upload to Azure Blob Storage
+        await azureBlobService.uploadBuffer(blobName, file.buffer, file.mimetype);
+        
+        // Generate the URL that frontend expects  
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const fileUrl = `/uploads/${uniqueSuffix}-${sanitizedName}`;
+        
+        uploadedFiles.push(fileUrl);
+      }
+      
       res.json({ 
         success: true, 
         files: uploadedFiles,
@@ -4157,8 +4200,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Serve static files
-  app.use('/uploads', express.static('uploads'));
+  // Stream files from Azure Blob Storage  
+  app.get('/uploads/:name', async (req, res) => {
+    try {
+      const { name } = req.params;
+      
+      // First, check if this is a purchase order invoice by looking for supplierInvoiceUrl
+      const purchaseOrders = await db.select().from(purchaseOrders).where(eq(purchaseOrders.supplierInvoiceUrl, `/uploads/${name}`));
+      if (purchaseOrders.length > 0) {
+        const po = purchaseOrders[0];
+        const blobName = `invoices/${po.id}/${name}`;
+        await azureBlobService.streamToResponse(blobName, res);
+        return;
+      }
+      
+      // Otherwise, look up in files table
+      const file = await storage.getFileByPath(`/uploads/${name}`);
+      if (!file) {
+        return res.status(404).json({ message: 'File not found' });
+      }
+      
+      // Map linkedToType to blob prefix
+      let blobName: string;
+      switch (file.linkedToType) {
+        case 'quality_check':
+          blobName = `qc/${file.linkedToId}/${name}`;
+          break;
+        case 'rfq':
+          blobName = `rfqs/${file.linkedToId}/${name}`;
+          break;
+        case 'purchase_order':
+        case 'invoice':
+          blobName = `invoices/${file.linkedToId}/${name}`;
+          break;
+        case 'quote':
+          blobName = `quotes/${file.linkedToId}/${name}`;
+          break;
+        case 'message':
+        case 'chat':
+          blobName = `messages/${file.linkedToId}/${name}`;
+          break;
+        default:
+          blobName = `files/${file.linkedToType}/${file.linkedToId}/${name}`;
+          break;
+      }
+      
+      await azureBlobService.streamToResponse(blobName, res);
+    } catch (error) {
+      console.error('File streaming error:', error);
+      res.status(500).json({ message: 'Failed to retrieve file' });
+    }
+  });
   
   // Serve converted XKT model files
   app.use('/models', express.static('public/models'));
@@ -4590,7 +4682,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Invoice can only be uploaded for delivered or completed orders' });
       }
       
-      const invoiceFileUrl = `/${req.file.path}`;
+      // Generate blob name for invoice
+      const blobName = azureBlobService.generateBlobName('invoice', poId, req.file.originalname);
+      
+      // Upload to Azure Blob Storage
+      await azureBlobService.uploadBuffer(blobName, req.file.buffer, req.file.mimetype);
+      
+      // Generate the URL that frontend expects
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const sanitizedName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const invoiceFileUrl = `/uploads/${uniqueSuffix}-${sanitizedName}`;
       
       // Update purchase order with invoice
       await storage.updatePurchaseOrder(poId, {
@@ -4665,7 +4766,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create purchase order manually by admin
-  app.post('/api/admin/purchase-orders', authenticateToken, requireAdmin, multer({ dest: 'uploads/' }).single('poFile'), async (req: any, res) => {
+  app.post('/api/admin/purchase-orders', authenticateToken, requireAdmin, upload.single('poFile'), async (req: any, res) => {
     try {
       const { supplierQuoteId, supplierId, totalAmount, deliveryDate, notes } = req.body;
 
@@ -5094,24 +5195,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate file type - must be PDF
       const originalExt = path.extname(req.file.originalname).toLowerCase();
       if (originalExt !== '.pdf') {
-        try {
-          fs.unlinkSync(req.file.path);
-        } catch (e) {
-          console.error('Failed to remove invalid file:', e);
-        }
         return res.status(400).json({ message: 'Only PDF files are allowed for invoices' });
       }
 
       // Additional validation: check if file content is actually a PDF
-      const fileBuffer = fs.readFileSync(req.file.path);
-      const isPDF = fileBuffer.toString('utf8', 0, 4) === '%PDF';
+      const isPDF = req.file.buffer.toString('utf8', 0, 4) === '%PDF';
       
       if (!isPDF) {
-        try {
-          fs.unlinkSync(req.file.path);
-        } catch (e) {
-          console.error('Failed to remove invalid file:', e);
-        }
         return res.status(400).json({ message: 'File content is not a valid PDF' });
       }
       
@@ -5129,7 +5219,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Invoices can only be uploaded for delivered orders' });
       }
       
-      const invoiceUrl = `/uploads/${path.basename(req.file.path)}`;
+      // Generate blob name for invoice
+      const blobName = azureBlobService.generateBlobName('invoice', poId, req.file.originalname);
+      
+      // Upload to Azure Blob Storage
+      await azureBlobService.uploadBuffer(blobName, req.file.buffer, req.file.mimetype);
+      
+      // Generate the URL that frontend expects
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const sanitizedName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const invoiceUrl = `/uploads/${uniqueSuffix}-${sanitizedName}`;
       
       // Update purchase order with invoice
       await storage.updatePurchaseOrder(poId, {
@@ -5157,26 +5256,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate file type - must be PDF
       const originalExt = path.extname(req.file.originalname).toLowerCase();
       if (originalExt !== '.pdf') {
-        // Remove the uploaded file if it's not a PDF
-        try {
-          fs.unlinkSync(req.file.path);
-        } catch (e) {
-          console.error('Failed to remove invalid file:', e);
-        }
         return res.status(400).json({ message: 'Only PDF files are allowed for invoices' });
       }
 
       // Additional validation: check if file content is actually a PDF
-      const fileBuffer = fs.readFileSync(req.file.path);
-      const isPDF = fileBuffer.toString('utf8', 0, 4) === '%PDF';
+      const isPDF = req.file.buffer.toString('utf8', 0, 4) === '%PDF';
       
       if (!isPDF) {
-        // Remove the uploaded file if it's not actually a PDF
-        try {
-          fs.unlinkSync(req.file.path);
-        } catch (e) {
-          console.error('Failed to remove invalid file:', e);
-        }
         return res.status(400).json({ message: 'File content is not a valid PDF' });
       }
       
@@ -5194,7 +5280,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Invoices can only be uploaded for delivered orders' });
       }
       
-      const invoiceUrl = `/uploads/${path.basename(req.file.path)}`;
+      // Generate blob name for invoice
+      const blobName = azureBlobService.generateBlobName('invoice', poId, req.file.originalname);
+      
+      // Upload to Azure Blob Storage
+      await azureBlobService.uploadBuffer(blobName, req.file.buffer, req.file.mimetype);
+      
+      // Generate the URL that frontend expects
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const sanitizedName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const invoiceUrl = `/uploads/${uniqueSuffix}-${sanitizedName}`;
       
       // Update purchase order with invoice
       await storage.updatePurchaseOrder(poId, {
