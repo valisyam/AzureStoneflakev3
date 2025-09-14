@@ -141,6 +141,43 @@ Monitor your application health using the `/api/healthz` endpoint. This can be i
 - External monitoring services
 - Docker health checks
 
+## Azure Blob Storage Configuration
+
+This application uses Azure Blob Storage for file uploads and storage. Configure the following environment variables in your Azure App Service Application Settings:
+
+### Required Environment Variables
+
+- `AZURE_STORAGE_CONNECTION_STRING`: Your Azure Storage Account connection string
+- `AZURE_BLOB_CONTAINER`: The name of the blob container to store files
+
+### Setting Up in Azure App Service
+
+1. Navigate to your App Service in the Azure Portal
+2. Go to **Configuration** → **Application settings**
+3. Add the following environment variables:
+
+```
+AZURE_STORAGE_CONNECTION_STRING = DefaultEndpointsProtocol=https;AccountName=<your-account>;AccountKey=<your-key>;EndpointSuffix=core.windows.net
+AZURE_BLOB_CONTAINER = <your-container-name>
+```
+
+### Local Development
+
+For local development, you can set these environment variables in your shell:
+
+```bash
+export AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=https;..."
+export AZURE_BLOB_CONTAINER="your-container-name"
+```
+
+**Note**: Do NOT use `.env` files or commit secrets to source code. The application is designed to read environment variables at runtime only.
+
+### Blob Container Setup
+
+Ensure your blob container exists and has the appropriate access permissions:
+- Container access level: Private (default)
+- The application uses the connection string for authenticated access
+
 ## Support
 
 For Azure-specific database connectivity issues, refer to the [Azure Database for PostgreSQL documentation](https://docs.microsoft.com/en-us/azure/postgresql/).
